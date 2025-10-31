@@ -1,0 +1,7 @@
+#Entorno 
+Virtualvenv/.venv/
+#Archivos de cachépy
+cache/*.pyc
+
+#Logs y bases de datos
+*.log*.sqlite
