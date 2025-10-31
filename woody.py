@@ -1,16 +1,16 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk # Import ttk for themed widgets
 from pynput.mouse import Controller, Button
-from pynput.keyboard import Controller as KeyboardController, Key # Importamos 'Key' para usar Enter
+from pynput.keyboard import Controller as KeyboardController, Key 
 import threading
 import time
 import sys
 
-# --- Constantes y Configuración ---
+# --- Constants and Configuration ---
 WINDOW_TITLE = "🐦 WOODY Autoclicker"
-WHITE_BG_COLOR = "#ffffff"  # Fondo Blanco
-BUTTON_BG_COLOR = "#dc3545"  # Rojo (Fondo de todos los botones)
-ACCENT_COLOR = "#007bff"    # Azul (Para mensajes de estado)
+WHITE_BG_COLOR = "#ffffff"  # White Background
+BUTTON_BG_COLOR = "#dc3545"  # Red (All main buttons background)
+ACCENT_COLOR = "#007bff"    # Blue (For status messages)
 FONT_STYLE = ("Arial", 10, "bold")
 DELAY_BEFORE_START = 3
 CLICK_INTERVAL_SECONDS = 0.03 
@@ -20,39 +20,52 @@ class WoodyAutoclicker:
     def __init__(self, master):
         self.master = master
         master.title(WINDOW_TITLE)
-        master.geometry("400x530") # Aumentamos el tamaño para el nuevo botón
+        master.geometry("400x570") 
         master.resizable(False, False)
-        master.config(bg=WHITE_BG_COLOR) # Establecer fondo blanco
+        master.config(bg=WHITE_BG_COLOR) 
 
-        # Inicialización de variables
+        # Initialization variables
         self.mouse = Controller()
-        self.keyboard = KeyboardController() # Inicializamos el controlador de teclado
+        self.keyboard = KeyboardController() 
         self.target_x = None
         self.target_y = None
         self.is_running = False
         self.stop_requested = False 
         self.clicks_performed = 0
-        self.current_click_limit = 0 # Para saber qué tarea está corriendo
+        self.current_click_limit = 0
         
-        # Estilo común de botones (letras blancas, fondo rojo consistente)
-        BUTTON_STYLES = {
-            "fg": "white",                  # Color de fuente normal (Blanco)
-            "bg": BUTTON_BG_COLOR,          # Fondo Rojo
-            "disabledforeground": "white",  # Color de fuente cuando está deshabilitado
-            "activeforeground": "white",    # Color de fuente cuando se pulsa
-            "activebackground": "#b02a37",  # Tono de rojo más oscuro al pulsar
-            "relief": tk.FLAT,
-            "font": FONT_STYLE,
-            "highlightthickness": 0,        
-        }
+        # --- TTK Style Configuration (The fix for disabled background) ---
+        self.style = ttk.Style()
+        
+        # 1. Define the base style for all buttons ('Red.TButton')
+        self.style.configure(
+            'Red.TButton',
+            background=BUTTON_BG_COLOR,
+            foreground='white',
+            font=FONT_STYLE,
+            relief='flat',
+            borderwidth=0,
+            # We set the background and foreground for the normal state here
+            # These are usually overridden by map, but necessary for the base style
+        )
+        
+        # 2. Map specific state colors (Crucial for DISABLED and ACTIVE states)
+        self.style.map(
+            'Red.TButton',
+            # Set the foreground (text color) to always be white
+            foreground=[('disabled', 'white'), ('active', 'white'), ('!disabled', 'white')],
+            # Set the background color for different states
+            background=[('disabled', BUTTON_BG_COLOR), ('active', '#b02a37'), ('!disabled', BUTTON_BG_COLOR)],
+        )
 
-        # Estilo de etiquetas (letras negras, fondo blanco)
+        # 3. Define the style for labels (ttk.Label doesn't support 'bg', so we use standard tk.Label)
         LABEL_STYLES = {
-            "fg": "black", # Color de fuente Negro
+            "fg": "black", 
             "bg": WHITE_BG_COLOR,
         }
 
-        # --- Título Principal ---
+        # --- Main Title ---
+        # Labels remain tk.Label for easy background color control
         self.title_label = tk.Label(
             master,
             text="🐦 WOODY",
@@ -70,106 +83,116 @@ class WoodyAutoclicker:
         self.subtitle_label.pack(pady=(0, 15))
 
 
-        # 1. Indicador de estado/coordenadas
+        # 1. Status/Coordinates Indicator
         self.status_label = tk.Label(
             master,
-            text="Estado: Esperando coordenadas...",
+            text="State: Waiting for coordinates...",
             font=("Arial", 11),
             **LABEL_STYLES
         )
         self.status_label.pack(pady=5)
         
-        # 1b. Etiqueta de progreso 
+        # 1b. Progress Label 
         self.progress_label = tk.Label(
             master,
-            text=f"Intervalo: {CLICK_INTERVAL_SECONDS}s por click",
+            text=f"Interval: {CLICK_INTERVAL_SECONDS}s per click",
             font=("Arial", 10),
             **LABEL_STYLES
         )
         self.progress_label.pack(pady=5)
 
 
-        # 2. Botón de Selección de Área
-        self.select_button = tk.Button(
+        # 2. Area Selection Button (Now ttk.Button)
+        self.select_button = ttk.Button(
             master,
-            text="📌 Seleccionar Área (3s)",
+            text="📌 Select Area (3s)",
             command=self.start_selection_thread,
-            **BUTTON_STYLES
+            style='Red.TButton' # Apply the custom style
         )
         self.select_button.pack(pady=8, padx=20, fill=tk.X)
         
-        # 3a. Botón de Iniciar 1000 Clicks
-        self.start_1000_button = tk.Button(
+        # 3a. Start 1000 Clicks Button (Now ttk.Button)
+        self.start_1000_button = ttk.Button(
             master,
-            text="🚀 Iniciar 1000 Clicks",
+            text="🚀 Start 1000 Clicks",
             command=lambda: self.start_clicks_thread(1000),
             state=tk.DISABLED,
-            **BUTTON_STYLES
+            style='Red.TButton'
         )
         self.start_1000_button.pack(pady=(10, 5), padx=20, fill=tk.X)
 
-        # 3b. Botón de Iniciar 5000 Clicks
-        self.start_5000_button = tk.Button(
+        # 3b. Start 5000 Clicks Button (Now ttk.Button)
+        self.start_5000_button = ttk.Button(
             master,
-            text="⚡️ Iniciar 5000 Clicks",
+            text="⚡️ Start 5000 Clicks",
             command=lambda: self.start_clicks_thread(5000),
             state=tk.DISABLED,
-            **BUTTON_STYLES
+            style='Red.TButton'
         )
-        self.start_5000_button.pack(pady=(5, 10), padx=20, fill=tk.X)
+        self.start_5000_button.pack(pady=5, padx=20, fill=tk.X)
         
-        # 3c. Botón de Escribir Mensaje
-        self.typing_button = tk.Button(
+        # 3c. Typing Message Button (Now ttk.Button)
+        self.typing_button = ttk.Button(
             master,
-            text="✍️ Escribir Mensaje",
+            text="✍️ Type Message",
             command=self.start_typing_thread,
             state=tk.DISABLED,
-            **BUTTON_STYLES
+            style='Red.TButton'
         )
-        self.typing_button.pack(pady=(5, 10), padx=20, fill=tk.X)
+        self.typing_button.pack(pady=5, padx=20, fill=tk.X)
 
 
-        # 4. Botón de Detener
-        self.stop_button = tk.Button(
+        # 4. Stop Button (Now ttk.Button)
+        self.stop_button = ttk.Button(
             master,
-            text="🛑 Detener Clicks",
+            text="🛑 Stop Clicks",
             command=self.stop_clicks,
             state=tk.DISABLED,
-            **BUTTON_STYLES
+            style='Red.TButton'
         )
         self.stop_button.pack(pady=8, padx=20, fill=tk.X)
         
-        # 5. Botón de Salir
-        self.exit_button = tk.Button(
+        # 5. Exit Button (Now ttk.Button)
+        self.exit_button = ttk.Button(
             master,
-            text="Salir",
+            text="Exit",
             command=master.quit,
-            **BUTTON_STYLES
+            style='Red.TButton'
         )
-        self.exit_button.pack(pady=8, padx=20, fill=tk.X)
+        self.exit_button.pack(pady=15, padx=20, fill=tk.X)
+        
+        # --- Developer Label ---
+        self.dev_label = tk.Label(
+            master,
+            text="Developed by Neurocode",
+            font=("Arial", 9, "italic"),
+            fg="black", 
+            bg=WHITE_BG_COLOR
+        )
+        self.dev_label.pack(pady=(10, 10))
 
 
-    # --- Lógica de Hilos y Captura de Coordenadas ---
+    # --- Threading and Coordinate Capture Logic ---
 
     def start_selection_thread(self):
-        """Inicia un hilo para la cuenta regresiva y la captura de coordenadas."""
+        """Starts a thread for the countdown and coordinate capture."""
         if self.is_running:
             return
 
-        self.status_label.config(text="Estado: ⏳ 3 segundos para posicionar el ratón...", fg=ACCENT_COLOR)
+        self.status_label.config(text="State: ⏳ 3 seconds to position mouse...", fg=ACCENT_COLOR)
         self._disable_all_buttons()
         self.is_running = True
 
         threading.Thread(target=self.capture_coordinates_after_delay, daemon=True).start()
 
     def capture_coordinates_after_delay(self):
-        """Espera 3 segundos y luego captura las coordenadas del ratón."""
+        """Waits 3 seconds and then captures mouse coordinates."""
         
-        # Muestra una cuenta regresiva simple en la etiqueta
+        # Simple countdown display
         for i in range(DELAY_BEFORE_START, 0, -1):
-            # Usamos master.after para actualizar la UI desde el hilo
+            # Use master.after to update the UI from the thread
             self.master.after(1000 * (DELAY_BEFORE_START - i), 
-                              lambda i=i: self.status_label.config(text=f"Estado: ⏳ Captura en {i} segundos...", fg=ACCENT_COLOR))
+                              lambda i=i: self.status_label.config(text=f"State: ⏳ Capture in {i} seconds...", fg=ACCENT_COLOR))
             time.sleep(1) 
 
         time.sleep(1) 
@@ -183,190 +206,195 @@ class WoodyAutoclicker:
             self.master.after(0, lambda: self._handle_mac_permissions_error(e))
 
     def update_status_after_selection(self):
-        """Actualiza la interfaz después de que la selección haya terminado."""
+        """Updates the interface after selection is complete."""
         self.is_running = False
         self._enable_all_buttons()
         
         if self.target_x is not None:
             self.status_label.config(
-                text=f"✅ Coordenadas capturadas: ({self.target_x}, {self.target_y})",
-                fg=BUTTON_BG_COLOR # Usamos rojo para el éxito
+                text=f"✅ Coordinates captured: ({self.target_x}, {self.target_y})",
+                fg=BUTTON_BG_COLOR 
             )
-            # Habilita todos los botones de acción (clics y escritura)
+            # Enable all action buttons (clicks and typing)
             self.start_1000_button.config(state=tk.NORMAL)
             self.start_5000_button.config(state=tk.NORMAL)
             self.typing_button.config(state=tk.NORMAL)
-            self.progress_label.config(text=f"Listo para iniciar clics o escribir.")
+            self.progress_label.config(text=f"Ready to start clicks or typing.")
         else:
-            self.status_label.config(text="❌ Error al capturar coordenadas.", fg=BUTTON_BG_COLOR)
-            self.progress_label.config(text=f"Intervalo: {CLICK_INTERVAL_SECONDS}s por click")
+            self.status_label.config(text="❌ Error capturing coordinates.", fg=BUTTON_BG_COLOR)
+            self.progress_label.config(text=f"Interval: {CLICK_INTERVAL_SECONDS}s per click")
         
-    # --- Lógica de Auto Clicks ---
+    # --- Auto Clicks Logic ---
 
     def start_clicks_thread(self, click_limit):
-        """Inicia un hilo para la ráfaga de clicks y activa el botón de Detener."""
+        """Starts a thread for the click burst and enables the Stop button."""
         if self.is_running or self.target_x is None:
             return
         
-        # Establece el límite de clics para esta ejecución
+        # Set the click limit for this execution
         self.current_click_limit = click_limit
         
-        # Reiniciar variables de control
+        # Reset control variables
         self.stop_requested = False
         self.clicks_performed = 0
 
-        self.status_label.config(text=f"Estado: ⚙️ Realizando {click_limit} clicks...", fg=ACCENT_COLOR)
-        self._disable_all_buttons(allow_stop=True) # Permite que solo Detener esté activo
+        self.status_label.config(text=f"State: ⚙️ Performing {click_limit} clicks...", fg=ACCENT_COLOR)
+        self._disable_all_buttons(allow_stop=True) # Only allow Stop button to be active
         self.is_running = True
         
         threading.Thread(target=self.perform_clicks, daemon=True).start()
 
     def stop_clicks(self):
-        """Establece el flag para detener el proceso de clicks."""
+        """Sets the flag to safely stop the clicks process."""
         if self.is_running:
             self.stop_requested = True
-            self.status_label.config(text="Estado: 🔴 Detención solicitada...", fg=BUTTON_BG_COLOR)
+            self.status_label.config(text="State: 🔴 Stop requested...", fg=BUTTON_BG_COLOR)
             self.stop_button.config(state=tk.DISABLED)
 
     def perform_clicks(self):
-        """Mueve el ratón y realiza los clicks con pausa, revisando el flag de detención."""
+        """Moves the mouse and performs clicks with a pause, checking the stop flag."""
         
         try:
-            # Mueve el ratón una sola vez antes de empezar
+            # Move the mouse once before starting
             self.mouse.position = (self.target_x, self.target_y)
 
             for i in range(1, self.current_click_limit + 1):
                 if self.stop_requested:
-                    break # Sale del bucle si se solicita la detención
+                    break # Exit the loop if stop is requested
 
                 self.clicks_performed = i
                 
-                # Actualiza la etiqueta de progreso en el hilo principal
+                # Update the progress label on the main thread
                 self.master.after(0, 
-                                  lambda i=i: self.progress_label.config(text=f"Click {i} de {self.current_click_limit} | Faltan {self.current_click_limit - i}"))
+                                  lambda i=i: self.progress_label.config(text=f"Click {i} of {self.current_click_limit} | Remaining {self.current_click_limit - i}"))
                 
                 self.mouse.click(Button.left)
                 
-                # PAUSA DE 0.03 SEGUNDOS
+                # PAUSE OF 0.03 SECONDS
                 time.sleep(CLICK_INTERVAL_SECONDS) 
 
             self.master.after(0, self.finish_clicks)
         except Exception as e:
             self.master.after(0, lambda: self._handle_mac_permissions_error(e))
 
-    # --- Lógica de Auto Escritura ---
+    # --- Auto Typing Logic ---
 
     def start_typing_thread(self):
-        """Inicia un hilo para la automatización de escritura."""
+        """Starts a thread for typing automation."""
         if self.is_running or self.target_x is None:
             return
         
-        self.status_label.config(text="Estado: ✍️ Escribiendo mensaje...", fg=ACCENT_COLOR)
-        self.progress_label.config(text=f"Mensaje: '{MESSAGE_TO_TYPE[:30]}...'")
+        self.status_label.config(text="State: ✍️ Typing message...", fg=ACCENT_COLOR)
+        self.progress_label.config(text=f"Message: '{MESSAGE_TO_TYPE[:30]}...'")
         self._disable_all_buttons() 
         self.is_running = True
         
         threading.Thread(target=self.perform_typing, daemon=True).start()
 
     def perform_typing(self):
-        """Mueve el ratón, hace clic y escribe el mensaje, luego presiona Enter."""
+        """Moves the mouse, clicks, types the message, and then presses Enter."""
         try:
-            # 1. Mueve el ratón y hace clic para activar el campo de texto
+            # 1. Move the mouse and click to activate the text field
             self.mouse.position = (self.target_x, self.target_y)
-            time.sleep(0.1) # Breve pausa para que el cursor se mueva
+            time.sleep(0.1) 
             self.mouse.click(Button.left)
-            time.sleep(0.1) # Breve pausa para asegurar que el campo está activo
+            time.sleep(0.1) 
 
-            # 2. Escribe el mensaje
+            # 2. Type the message
             self.keyboard.type(MESSAGE_TO_TYPE)
             time.sleep(0.1) 
             
-            # 3. PULSA LA TECLA ENTER
+            # 3. PRESS THE ENTER KEY
             self.keyboard.press(Key.enter)
             self.keyboard.release(Key.enter)
-            time.sleep(0.5) # Pausa final para que la acción se complete
+            time.sleep(0.5) 
 
             self.master.after(0, self.finish_typing)
         except Exception as e:
             self.master.after(0, lambda: self._handle_mac_permissions_error(e))
 
     def finish_typing(self):
-        """Muestra el popup de finalización de escritura y restaura el estado."""
+        """Shows the typing completion popup and restores the state."""
         self.is_running = False
         self._enable_all_buttons()
         
-        msg = f"El mensaje ha sido escrito y enviado (pulsando Enter) en las coordenadas ({self.target_x}, {self.target_y}):\n\n{MESSAGE_TO_TYPE}"
-        self.status_label.config(text="✅ Tarea de escritura finalizada.", fg=BUTTON_BG_COLOR)
-        self.progress_label.config(text=f"Listo para iniciar clics o escribir.")
+        msg = (f"The message has been typed and sent (by pressing Enter) at coordinates "
+               f"({self.target_x}, {self.target_y}):\n\n{MESSAGE_TO_TYPE}")
+        self.status_label.config(text="✅ Typing task finished.", fg=BUTTON_BG_COLOR)
+        self.progress_label.config(text=f"Ready to start clicks or typing.")
 
-        messagebox.showinfo("Woody - Escritura Finalizada", msg)
+        messagebox.showinfo("Woody - Typing Finished", msg)
 
 
-    # --- Finalización y Utilidad ---
+    # --- Finalization and Utility ---
 
     def finish_clicks(self):
-        """Muestra el popup de finalización de clics y restaura el estado."""
+        """Shows the clicks completion popup and restores the state."""
         
         self.is_running = False
         self._enable_all_buttons()
         
         if self.clicks_performed == self.current_click_limit:
-            # Tarea completada
-            msg = f"La ráfaga de {self.current_click_limit} clicks izquierdos ha finalizado COMPLETAMENTE en las coordenadas ({self.target_x}, {self.target_y})."
-            self.status_label.config(text=f"✅ Tarea finalizada ({self.clicks_performed} clicks).", fg=BUTTON_BG_COLOR)
+            # Task completed
+            msg = (f"The burst of {self.current_click_limit} left clicks has been COMPLETELY "
+                   f"finished at coordinates ({self.target_x}, {self.target_y}).")
+            self.status_label.config(text=f"✅ Task finished ({self.clicks_performed} clicks).", fg=BUTTON_BG_COLOR)
         else:
-            # Tarea detenida
-            msg = f"La ráfaga de clicks ({self.current_click_limit}) fue DETENIDA por el usuario después de realizar {self.clicks_performed} clics."
-            self.status_label.config(text=f"⚠️ Tarea detenida ({self.clicks_performed} clicks).", fg=ACCENT_COLOR)
+            # Task stopped
+            msg = (f"The click burst ({self.current_click_limit}) was STOPPED by the user after "
+                   f"performing {self.clicks_performed} clicks.")
+            self.status_label.config(text=f"⚠️ Task stopped ({self.clicks_performed} clicks).", fg=ACCENT_COLOR)
         
-        self.progress_label.config(text=f"Total: {self.clicks_performed} clicks realizados. Último límite: {self.current_click_limit}")
+        self.progress_label.config(text=f"Total: {self.clicks_performed} clicks performed. Last limit: {self.current_click_limit}")
 
-        # Muestra el mensaje de finalización con el conteo actualizado
-        messagebox.showinfo("Woody - Finalizado", msg)
+        # Show completion message with updated count
+        messagebox.showinfo("Woody - Finished", msg)
         
-    # --- Métodos de utilidad ---
+    # --- Utility Methods ---
 
     def _disable_all_buttons(self, allow_stop=False):
+        """Disables all action buttons."""
         self.select_button.config(state=tk.DISABLED)
         self.start_1000_button.config(state=tk.DISABLED)
         self.start_5000_button.config(state=tk.DISABLED)
         self.typing_button.config(state=tk.DISABLED)
         self.exit_button.config(state=tk.DISABLED)
-        # Habilita el botón de detener solo si el proceso está en curso
+        # Enable stop button only if the process is ongoing
         self.stop_button.config(state=tk.NORMAL if allow_stop else tk.DISABLED)
 
     def _enable_all_buttons(self):
+        """Enables all primary buttons."""
         self.select_button.config(state=tk.NORMAL)
         self.exit_button.config(state=tk.NORMAL)
-        self.stop_button.config(state=tk.DISABLED) # Siempre deshabilitado fuera del proceso de clics
-        # Los botones de acción solo se habilitan si hay coordenadas capturadas
+        self.stop_button.config(state=tk.DISABLED) # Always disabled outside of the click process
+        # Action buttons are only enabled if coordinates have been captured
         if self.target_x is not None:
             self.start_1000_button.config(state=tk.NORMAL)
             self.start_5000_button.config(state=tk.NORMAL)
             self.typing_button.config(state=tk.NORMAL)
 
     def _handle_mac_permissions_error(self, error):
-        """Maneja errores específicos de pynput en macOS."""
+        """Handles specific pynput errors on macOS."""
         self.is_running = False
         self._enable_all_buttons()
-        self.status_label.config(text="❌ ERROR de Permisos de macOS.", fg=BUTTON_BG_COLOR)
-        self.progress_label.config(text=f"Intervalo: {CLICK_INTERVAL_SECONDS}s por click")
+        self.status_label.config(text="❌ macOS Permissions ERROR.", fg=BUTTON_BG_COLOR)
+        self.progress_label.config(text=f"Interval: {CLICK_INTERVAL_SECONDS}s per click")
 
         if "You must grant permission for the application to control your input devices" in str(error) or sys.platform == "darwin":
             messagebox.showerror(
-                "❌ ERROR: Permisos de macOS",
-                "¡ATENCIÓN! El sistema operativo macOS está bloqueando el control del ratón/teclado.\n\n"
-                "NECESITAS hacer lo siguiente:\n"
-                "1. Ir a Preferencias del Sistema > Seguridad y Privacidad > Privacidad.\n"
-                "2. Seleccionar 'Accesibilidad'.\n"
-                "3. Agregar la aplicación de Python (o la terminal que ejecuta el script) a la lista de aplicaciones permitidas.\n"
-                "4. Reiniciar la aplicación de Woody."
+                "❌ ERROR: macOS Permissions",
+                "ATTENTION! The macOS operating system is blocking mouse/keyboard control.\n\n"
+                "YOU NEED to do the following:\n"
+                "1. Go to System Preferences > Security & Privacy > Privacy.\n"
+                "2. Select 'Accessibility'.\n"
+                "3. Add the Python application (or the terminal running the script) to the list of allowed applications.\n"
+                "4. Restart the Woody application."
             )
         else:
-            messagebox.showerror("Error", f"Ocurrió un error inesperado al usar el ratón/teclado: {e}")
+            messagebox.showerror("Error", f"An unexpected error occurred while using the mouse/keyboard: {e}")
 
 
-# --- Ejecución Principal ---
+# --- Main Execution ---
 if __name__ == "__main__":
     try:
         root = tk.Tk()
@@ -374,9 +402,9 @@ if __name__ == "__main__":
         root.mainloop()
     except ImportError:
         messagebox.showerror(
-            "Error de Dependencia",
-            "La librería 'pynput' es necesaria para esta aplicación.\n"
-            "Instálala con: pip install pynput"
+            "Dependency Error",
+            "The 'pynput' library is required for this application.\n"
+            "Install it with: pip install pynput"
         )
     except Exception as e:
-        messagebox.showerror("Error", f"Ocurrió un error inesperado al iniciar la aplicación: {e}")
+        messagebox.showerror("Error", f"An unexpected error occurred while starting the application: {e}")
